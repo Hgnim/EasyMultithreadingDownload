@@ -17,3 +17,10 @@ EMD是一个更简单易懂的多线程下载器。相比其他软件，EMD没�
 如果该程序有什么bug或值得改进的地方，欢迎提出！
 
 持续更新中... :)
+
+<br/><br/>
+<div>
+相关介绍视频参考(来源:bilibili)：
+
+[![](https://i0.hdslb.com/bfs/archive/2c7c7b5ced6d33713ae586d49d8abf96b1fc8f5e.jpg@320w_200h)](https://www.bilibili.com/video/BV1Hm421x7Lz)
+</div>
