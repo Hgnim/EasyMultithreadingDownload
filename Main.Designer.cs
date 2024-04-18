@@ -43,17 +43,24 @@
 			// 
 			// UrlBox
 			// 
-			UrlBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+			UrlBox.AllowDrop = true;
+			UrlBox.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
 			UrlBox.Font = new Font("Microsoft YaHei UI", 10F);
 			UrlBox.Location = new Point(65, 4);
+			UrlBox.MaxLength = 99999;
+			UrlBox.Multiline = true;
 			UrlBox.Name = "UrlBox";
 			UrlBox.PlaceholderText = "在此填入文件下载地址";
+			UrlBox.ScrollBars = ScrollBars.Vertical;
 			UrlBox.Size = new Size(365, 24);
 			UrlBox.TabIndex = 0;
+			UrlBox.WordWrap = false;
+			UrlBox.DragDrop += UrlBox_DragDrop;
+			UrlBox.DragEnter += UrlBox_DragEnter;
 			// 
 			// SaveDirBox
 			// 
-			SaveDirBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+			SaveDirBox.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
 			SaveDirBox.Font = new Font("Microsoft YaHei UI", 10F);
 			SaveDirBox.Location = new Point(65, 34);
 			SaveDirBox.Name = "SaveDirBox";
@@ -63,7 +70,7 @@
 			// 
 			// DirSelect
 			// 
-			DirSelect.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+			DirSelect.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
 			DirSelect.Location = new Point(361, 35);
 			DirSelect.Name = "DirSelect";
 			DirSelect.Size = new Size(69, 23);
@@ -78,6 +85,7 @@
 			// 
 			// label1
 			// 
+			label1.Anchor = AnchorStyles.Left;
 			label1.AutoSize = true;
 			label1.Font = new Font("Microsoft YaHei UI", 10F);
 			label1.Location = new Point(-1, 7);
@@ -88,6 +96,7 @@
 			// 
 			// label2
 			// 
+			label2.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
 			label2.AutoSize = true;
 			label2.Font = new Font("Microsoft YaHei UI", 10F);
 			label2.Location = new Point(-1, 36);
@@ -98,7 +107,7 @@
 			// 
 			// StartButton
 			// 
-			StartButton.Anchor = AnchorStyles.Top;
+			StartButton.Anchor = AnchorStyles.Bottom;
 			StartButton.Font = new Font("Microsoft YaHei UI", 11F);
 			StartButton.Location = new Point(167, 64);
 			StartButton.Name = "StartButton";
@@ -137,7 +146,7 @@
 			gy.Size = new Size(32, 17);
 			gy.TabIndex = 8;
 			gy.Text = "关于";
-			gy.Click += gy_Click;
+			gy.Click += Gy_Click;
 			// 
 			// Main
 			// 
@@ -155,10 +164,10 @@
 			Controls.Add(gy);
 			Icon = (Icon)resources.GetObject("$this.Icon");
 			MaximizeBox = false;
-			MaximumSize = new Size(4000, 137);
 			MinimumSize = new Size(317, 137);
 			Name = "Main";
 			Text = "简易多线程下载器";
+			FormClosing += Main_FormClosing;
 			Load += Main_Load;
 			ResumeLayout(false);
 			PerformLayout();

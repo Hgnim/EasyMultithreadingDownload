@@ -7,48 +7,111 @@ using System.Resources;
 using System.Runtime.InteropServices;
 using System.Text;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.Window;
+using System.Xml;
 
 namespace EasyMultithreadingDownload
 {
 	public partial class Main : Form
 	{
-		static readonly string version = "1.0.0.20240416";
+		static readonly string version = "1.1.0.20240418";
 		public Main()
 		{
 			InitializeComponent();
 		}
-		static readonly string tempPath = Path.GetTempPath() + "emd/";
-		static readonly string aria2cEXE = tempPath + "aria2c.exe";
+
+		static class Config
+		{
+			static public readonly string tempPath = Path.GetTempPath() + "emd/";
+			static public readonly string dataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "/EasyMultithreadingDownload/";
+			static public readonly string dataFile = dataPath + "data.xml";
+			static public readonly string aria2cEXE = tempPath + "aria2c.exe";
+		}
+		static class DataConfig
+		{
+			//public static bool shownMoreDownloads = true;
+		}
+		#region 主窗体事件处理
 		private void Main_Load(object sender, EventArgs e)
 		{
-			System.IO.Directory.CreateDirectory(tempPath);
-			if (!File.Exists(aria2cEXE))
-			{
+			if (!Directory.Exists(Config.tempPath)) Directory.CreateDirectory(Config.tempPath);
+			if (!Directory.Exists(Config.dataPath)) Directory.CreateDirectory(Config.dataPath);
+			if (!File.Exists(Config.aria2cEXE))
 				OutputResource("aria2c.exe");
+			if (!File.Exists(Config.dataFile))
+			{
+				XmlTextWriter xmlWriter = new(Config.dataFile, System.Text.Encoding.GetEncoding("utf-8")) { Formatting = System.Xml.Formatting.Indented };
+
+				xmlWriter.WriteRaw("<?xml version=\"1.0\" encoding=\"utf-8\" ?>");
+				xmlWriter.WriteStartElement("EasyMultithreadingDownload_Data");
+
+				xmlWriter.WriteStartElement("windows");
+				xmlWriter.WriteAttributeString("width", "-1");
+				xmlWriter.WriteAttributeString("height", "-1");
+				xmlWriter.WriteAttributeString("x", "-1");
+				xmlWriter.WriteAttributeString("y", "-1");
+				xmlWriter.WriteEndElement();
+
+				/*xmlWriter.WriteStartElement("shown");
+				xmlWriter.WriteAttributeString("more_downloads", "-1");
+				xmlWriter.WriteEndElement();*/
+				xmlWriter.WriteStartElement("more_data");
+				xmlWriter.WriteAttributeString("save_dir_path", "null");
+				xmlWriter.WriteEndElement();
+
+				xmlWriter.WriteFullEndElement();
+				xmlWriter.Close();
+
+				SaveDirBox.Text = KnownFolders.Downloads.Path;
+			}
+			else
+			{
+				XmlDocument xmlDoc = new();
+				XmlNode xmlRoot = xmlDoc.SelectSingleNode("null")!;
+				xmlDoc.Load(Config.dataFile);
+				xmlRoot = xmlDoc.SelectSingleNode("EasyMultithreadingDownload_Data")!;
+				XmlNodeList xmlNL = xmlRoot.ChildNodes;
+				foreach (XmlNode xn in xmlNL)
+				{
+					XmlElement xmlE = (XmlElement)xn;
+					switch (xmlE.Name)
+					{
+						case "windows":
+							int[] size = [int.Parse(xmlE.GetAttribute("width")), int.Parse(xmlE.GetAttribute("height"))];
+							int[] loc = [int.Parse(xmlE.GetAttribute("x")), int.Parse(xmlE.GetAttribute("y"))];
+							if (size[0] >= this.MinimumSize.Width && size[1] >= this.MinimumSize.Height /*&&
+								size[0] <= this.MaximumSize.Width && size[1] <= this.MaximumSize.Height*/)
+								this.Size = new Size(size[0], size[1]);
+							if (loc[0] >= 0 && loc[1] >= 0 &&
+								loc[0] < Screen.PrimaryScreen!.Bounds.Width && loc[1] < Screen.PrimaryScreen.Bounds.Height)
+								this.Location = new Point(loc[0], loc[1]);
+							break;
+						/*case "shown":
+							if (xmlE.GetAttribute("more_downloads") == "0")
+								DataConfig.shownMoreDownloads = false;
+							else
+								DataConfig.shownMoreDownloads = true;
+							break;*/
+						case "more_data":
+								 SaveDirBox.Text = xmlE.GetAttribute("save_dir_path");break;
+							
+					}
+				}
 			}
 
-			SaveDirBox.Text = KnownFolders.Downloads.Path;
+			//SaveDirBox.Text = KnownFolders.Downloads.Path;
 			Debug.WriteLine("started");
 		}
-		void OutputResource(String path)
+		private void Main_FormClosing(object sender, FormClosingEventArgs e)
 		{
-			Assembly assembly = Assembly.GetExecutingAssembly();
-			string resPath = $"{assembly.FullName.Split(',')[0]}.{path}";
-			Stream stream = assembly.GetManifestResourceStream(resPath);
-			Stream outFile = File.Create(tempPath + path);
-			stream.CopyTo(outFile);
-			outFile.Close();
-			stream.Close();
+			Data_Save();
 		}
-
+		#endregion
 		private void DirSelect_Click(object sender, EventArgs e)
 		{
 			folderBrowserDialog1.SelectedPath = SaveDirBox.Text;
 
-			//按下确定选择的按钮  
-			if (folderBrowserDialog1.ShowDialog() == DialogResult.OK)
+			if (folderBrowserDialog1.ShowDialog() == DialogResult.OK)//用户点确认件才保存选择的路径数据
 			{
-				//记录选中的目录  
 				SaveDirBox.Text = folderBrowserDialog1.SelectedPath;
 			}
 		}
@@ -69,85 +132,117 @@ namespace EasyMultithreadingDownload
 			DownloadProgressBar.Visible = true;
 			TaskbarProgressbar.TaskbarManager.SetProgressState(TaskbarProgressbar.TaskbarProgressBarState.Normal);
 
-			int overCode = 0;
-			int outfilePathCode = -1;
-			string outfilePath = "--";
+			List<int> overCode = [];//0;
+			List<string> outfilePath = [];//"--";
+			List<string> urlList = []; int fileNumProgress;
 			Thread downloadThread = new(() =>
 			{
+				List<int> outfilePathCode = [];//-1;
 				try
 				{
-					Process process = new()
+					if (UrlBox.Text.IndexOf("\r\n") != -1)
 					{
-						StartInfo = new ProcessStartInfo
+						string[] urls = UrlBox.Text.Split("\r\n");
+						for(int i = 0; i < urls.Length; i++)
 						{
-							FileName = aria2cEXE,
-							Arguments = " -x 16 -s 32 -d \"" + SaveDirBox.Text + "\" \"" + UrlBox.Text + "\"",
-							UseShellExecute = false,
-							RedirectStandardOutput = true,
-							CreateNoWindow = true
+							if (urls[i] != "")
+							{
+								urlList.Add(urls[i]);
+							}
 						}
-					};
+					}else urlList.Add(UrlBox.Text);
 
-					process.Start();
-					{
-						string outputLine;
-
-
-						while (!process.StandardOutput.EndOfStream)
+					for (fileNumProgress = 0; fileNumProgress < urlList.Count; fileNumProgress++) {
+						try
 						{
-							outputLine = process.StandardOutput.ReadLine();
-							Debug.WriteLine(outputLine);
-							switch (outputLine)
+							overCode.Add(0);
+							outfilePathCode.Add(-1);
+							outfilePath.Add("--");
+							Process process = new()
 							{
-								case "Status Legend:":
-									overCode = -1;
-									goto restart;
-								case "Download Results:":
-									outfilePathCode = 0;
-									goto restart;
-							}
-							if (overCode == -1)
-							{
-								if (outputLine.IndexOf("OK") != -1)
-									overCode = 1;
-							}
-							else if (outfilePathCode > -1 && outfilePathCode < 3)
-							{
-								if (outfilePathCode == 2)
+								StartInfo = new ProcessStartInfo
 								{
-									outfilePath = "";
-									string[] sp = outputLine.Split("|");
-									for (int i = 3; i < sp.Length; i++)
-										outfilePath += sp[i];
+									FileName = Config.aria2cEXE,
+									Arguments = " -x 16 -s 32 -d \"" + SaveDirBox.Text + "\" \"" + urlList[fileNumProgress] + "\"",
+									UseShellExecute = false,
+									RedirectStandardOutput = true,
+									CreateNoWindow = true
 								}
-								outfilePathCode++;
-							}
-							else if (outputLine!.IndexOf("CN:") != -1 && outputLine.IndexOf("DL:") != -1 && outputLine.IndexOf("]") != -1)
-							{
-								Thread uiThread = new(new ParameterizedThreadStart(uiChange!));
-								void uiChange(object outputStr)
-								{
-									string o = outputStr.ToString()!.Split("]")[0];
-									string[] s = o.Split(" ");
-									string time = "-";
-									int progressInt = int.Parse(s[1].Split("(")[1].Split("%")[0]);
+							};
 
-									if (outputStr.ToString()!.IndexOf("ETA") != -1)
-										time = s[4].Split(":")[1];
-									this.Invoke(new Action(() =>
+							process.Start();
+							{
+								string outputLine;
+
+
+								while (!process.StandardOutput.EndOfStream)
+								{
+									outputLine = process.StandardOutput.ReadLine()!;
+									Debug.WriteLine(outputLine);
+									switch (outputLine)
 									{
-										ProgressText.Text = "进度:" + s[1] + "  速度:" + s[3].Split(":")[1] + "/s  剩余时间:" + time;
-										DownloadProgressBar.Value = progressInt;
-									}));
-									TaskbarProgressbar.TaskbarManager.SetProgressValue(progressInt, 100);
-								}
-								uiThread.Start(outputLine);
-							}
+										case "Status Legend:":
+											overCode[fileNumProgress] = -1;
+											goto restart;
+										case "Download Results:":
+											outfilePathCode[fileNumProgress] = 0;
+											goto restart;
+									}
+									if (overCode[fileNumProgress] == -1)
+									{
+										if (outputLine.IndexOf("OK") != -1)
+											overCode[fileNumProgress] = 1;
+									}
+									else if (outfilePathCode[fileNumProgress] > -1 && outfilePathCode[fileNumProgress] < 3)
+									{
+										if (outfilePathCode[fileNumProgress] == 2)
+										{
+											outfilePath[fileNumProgress] = "";
+											string[] sp = outputLine.Split("|");
+											for (int i = 3; i < sp.Length; i++)
+												outfilePath[fileNumProgress] += sp[i];
+										}
+										outfilePathCode[fileNumProgress]++;
+									}
+									else if (outputLine!.IndexOf("CN:") != -1 && outputLine.IndexOf("DL:") != -1 && outputLine.IndexOf("]") != -1)
+									{
+										Thread uiThread = new(new ParameterizedThreadStart(uiChange!));
+										void uiChange(object outputStr)
+										{
+											string o = outputStr.ToString()!.Split("]")[0];
+											string[] s = o.Split(" ");
+											string time = "-";
+											int progressInt;
+											try
+											{
+												progressInt=int.Parse(s[1].Split("(")[1].Split("%")[0]);
+											}
+											catch { progressInt= DownloadProgressBar.Value; }
+
+											if (outputStr.ToString()!.IndexOf("ETA") != -1)
+												time = s[4].Split(":")[1];
+											this.Invoke(new Action(() =>
+											{
+												ProgressText.Text =
+													"文件数:" + (fileNumProgress + 1).ToString() + "/" + urlList.Count.ToString() +
+												  "  进度:" + s[1] +
+												  "  速度:" + s[3].Split(":")[1] +
+												"/s  剩余时间:" + time;
+												DownloadProgressBar.Value = progressInt;
+											}));
+											TaskbarProgressbar.TaskbarManager.SetProgressValue(progressInt, 100);
+										}
+										uiThread.Start(outputLine);
+									}
 restart:;
+								}
+							}
 						}
+						catch { overCode[fileNumProgress] = -2; }
 					}
 				}
-				catch { overCode = -2; }
+				catch { overCode.Add(-3);//初始错误代号
+										 }
 			});
 			downloadThread.Start();
 			while (downloadThread.IsAlive)
@@ -155,21 +250,48 @@ restart:;
 				Application.DoEvents();
 			}
 
-			if (overCode == 1)
-			{
-				ProgressText.Text = "已完成!";
-				DownloadProgressBar.Value = 100;
-				TaskbarProgressbar.TaskbarManager.SetProgressValue(100, 100);
-				MessageBox.Show("下载完成!文件保存于" + outfilePath, this.Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
-			}
+			#region 信息输出
+			if (overCode[0] == -3)
+				failOutput();
 			else
 			{
+				if (urlList.Count == 1)
+				{
+					if (overCode[0] == 1)
+					{
+						ProgressText.Text = "已完成!";
+						DownloadProgressBar.Value = 100;
+						TaskbarProgressbar.TaskbarManager.SetProgressValue(100, 100);
+						MessageBox.Show("下载完成!文件保存于" + outfilePath[0], this.Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+					}
+					else failOutput();
+				}
+				else
+				{
+					ProgressText.Text = "批量下载已完成!";
+					DownloadProgressBar.Value = 100;
+					string outputStr="批量下载已完成!";
+					for(int i = 0;i<urlList.Count; i++)
+					{
+						outputStr += "\r\n";
+						if (overCode[i] == 1) outputStr += "[下载成功] " + outfilePath[i];
+						else outputStr += "[下载失败] " + urlList[i];//outfilePath[i] ;
+					}
+					MessageBox.Show(outputStr,this.Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+				}
+			}
+			void failOutput()
+			{
+				ProgressText.Text = "失败!";
 				TaskbarProgressbar.TaskbarManager.SetProgressState(TaskbarProgressbar.TaskbarProgressBarState.Error);
 				MessageBox.Show("下载失败!", this.Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
 			}
+			#endregion
 
-
+			
+			//UrlBox.Clear();
 			UrlBox.Enabled = true;
+			UrlBox.Focus();UrlBox.SelectAll();
 			SaveDirBox.Enabled = true;
 			DirSelect.Enabled = true;
 			ProgressText.Visible = false;
@@ -182,13 +304,70 @@ restart:;
 			gy.Visible = true;
 		}
 
-		private void gy_Click(object sender, EventArgs e)
+		#region 信息拖拽处理
+		private void UrlBox_DragEnter(object sender, DragEventArgs e)
+		{			
+			if (e.Data!.GetDataPresent(DataFormats.Text))//验证拖拽到数据格式，只允许拖拽链接文本
+				e.Effect = DragDropEffects.Link;
+			else
+				e.Effect = DragDropEffects.None;
+		}
+
+		private void UrlBox_DragDrop(object sender, DragEventArgs e)
+		{
+			if (UrlBox.Text != "") UrlBox.Text += "\r\n";
+			UrlBox.Text += e.Data!.GetData(DataFormats.Text)!.ToString();
+
+		}
+		#endregion
+
+		private void Gy_Click(object sender, EventArgs e)
 		{
 			MessageBox.Show("程序名:EasyMultithreadingDownload(EMD)" +
 						"\r\n别名:简易多线程下载器" +
-						"\r\n版本:V" + version+
+						"\r\n版本:V" + version +
 						"\r\nCopyright (C) 2024 Hgnim, All rights reserved." +
-						"\r\nGithub: https://github.com/hgnim","关于");
+						"\r\nGithub: https://github.com/Hgnim/EasyMultithreadingDownload", "关于");
+		}
+
+
+		static void OutputResource(String path)
+		{
+			Assembly assembly = Assembly.GetExecutingAssembly();
+			string resPath = $"{assembly.FullName!.Split(',')[0]}.{path}";
+			Stream stream = assembly.GetManifestResourceStream(resPath)!;
+			Stream outFile = File.Create(Config.tempPath + path);
+			stream.CopyTo(outFile);
+			outFile.Close();
+			stream.Close();
+		}
+		void Data_Save()
+		{
+			XmlDocument xmlDoc = new();
+			XmlNodeList xmlNL;
+			XmlElement xmlEle;
+			xmlDoc.Load(Config.dataFile);
+			xmlNL = xmlDoc.SelectSingleNode("EasyMultithreadingDownload_Data")!.ChildNodes;
+			foreach (XmlNode xn in xmlNL)
+			{
+				xmlEle = (XmlElement)xn;
+				switch (xmlEle.Name)
+				{
+					case "windows":
+						xmlEle.SetAttribute("width", this.Size.Width.ToString());
+						xmlEle.SetAttribute("height", this.Size.Height.ToString());
+						xmlEle.SetAttribute("x", this.Location.X.ToString());
+						xmlEle.SetAttribute("y", this.Location.Y.ToString());
+						break;
+						case "more_data":
+						xmlEle.SetAttribute("save_dir_path", SaveDirBox.Text);break;
+						/*case "shown":
+							xmlEle.SetAttribute("more_downloads", Convert.ToInt32(DataConfig.shownMoreDownloads).ToString());
+							break;*/
+				}
+			}
+			xmlDoc.Save(Config.dataFile);
+
 		}
 	}
 	public static class TaskbarProgressbar
@@ -315,7 +494,7 @@ restart:;
 		{
 			private static object _syncLock = new object();
 
-			private static ITaskbarList4 _taskbarList;
+			private static ITaskbarList4? _taskbarList;
 			internal static ITaskbarList4 Instance
 			{
 				get
