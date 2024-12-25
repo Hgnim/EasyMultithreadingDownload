@@ -1,0 +1,52 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>EMD-logo.ico</ApplicationIcon>
+    <Title>简易多线程下载器</Title>
+    <Company>Hgnim</Company>
+    <Product>EasyMultithreadingDownload(EMD)</Product>
+    <Description>EasyMultithreadingDownload(EMD)</Description>
+    <Copyright>Copyright (C) 2024 Hgnim, All rights reserved.</Copyright>
+    <AssemblyName>Easy Multithreading Download</AssemblyName>
+    <AssemblyVersion>1.1.0.0418</AssemblyVersion>
+    <FileVersion>1.1.0.0418</FileVersion>
+    <Version>1.1.0.20240418</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="EMD-logo.ico" />
+  </ItemGroup>
+
+
+
+  <ItemGroup>
+    <EmbeddedResource Include="aria2c.exe" />
+  </ItemGroup>
+
+
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft-WindowsAPICodePack-Shell" Version="1.1.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Resource.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resource.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Resource.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resource.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>
