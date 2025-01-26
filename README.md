@@ -1,3 +1,5 @@
+该项目已放弃，将来**可能**不再对其继续维护
+
 # EasyMultithreadingDownload(EMD) 简易多线程下载器
 
 基于Windows平台下的多线程下载器。
